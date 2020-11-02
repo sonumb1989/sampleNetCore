@@ -1,3 +1,9 @@
+using AutoMapper;
+using Common.Authentication;
+using Common.Entities;
+using Common.Extensions;
+using DataLayer.Database;
+using GenericBizRunner.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -7,10 +13,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
+using ServicesLayer.Dto;
 using System;
+using System.Reflection;
 using System.Text;
-using WebApi.Common.Authentication;
-using WebApi.Persistence.Database;
+using WebApi.ViewModels;
 
 namespace WebApi
 {
@@ -29,8 +36,32 @@ namespace WebApi
             services.AddDbContext<ApplicationDbContext>(options =>
                options.UseSqlServer(
                    Configuration.GetConnectionString("DefaultConnection")));
-            services.AddIdentityCore<IdentityUser>()
-                .AddEntityFrameworkStores<ApplicationDbContext>();
+            services.AddIdentityCore<AppUser>();
+            //to add role for register user
+            services.AddDefaultIdentity<AppUser>()
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationDbContext>();
+
+            var builder = services.AddIdentityCore<AppUser>(o =>
+            {
+                // configure identity options
+                o.Password.RequireDigit = false;
+                o.Password.RequireLowercase = false;
+                o.Password.RequireUppercase = false;
+                o.Password.RequireNonAlphanumeric = false;
+                o.Password.RequiredLength = 6;
+            });
+
+           
+
+            // Auto Mapper Configurations
+            var mappingConfig = new MapperConfiguration(mc =>
+            {
+                mc.AddProfile(new ViewModelToEntityMappingProfile());
+            });
+
+            IMapper mapper = mappingConfig.CreateMapper();
+            services.AddSingleton(mapper);
 
             // Get options from app settings
             var jwtAppSettingOptions = Configuration.GetSection(nameof(JwtIssuerOptions));
@@ -55,6 +86,16 @@ namespace WebApi
 
             //Register the Swagger generator
             services.AddSwaggerGen();
+
+            services.AutoRegisterDI();
+            #region GenericBizRunner parts
+            //This sets up the GenericBizRunner to use one DbContext. Note: you could add a GenericBizRunnerConfig here if you needed it
+            services.RegisterBizRunnerWithDtoScans<ApplicationDbContext>(Assembly.GetAssembly(typeof(AccountDto)));
+            //This sets up the GenericBizRunner to work with multiple DbContext
+            //see https://github.com/JonPSmith/EfCore.GenericBizRunner/wiki/Using-multiple-DbContexts
+            //services.RegisterBizRunnerMultiDbContextWithDtoScans(Assembly.GetAssembly(typeof(WebChangeDeliveryDto)));
+            #endregion
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
