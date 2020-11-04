@@ -3,5 +3,5 @@ using ServicesLayer.Dto;
 
 namespace ServicesLayer.Account
 {
-    public interface ILoginAccountAction : IGenericActionAsync<AccountDto, bool> { }
+    public interface ILoginAccountAction : IGenericActionAsync<LoginDto, string> { }
 }

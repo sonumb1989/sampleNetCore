@@ -1,50 +1,55 @@
 ﻿using AutoMapper;
+using Common.Authentication;
 using Common.Entities;
+using Common.Helpers;
 using GenericBizRunner;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using ServicesLayer.Dto;
-using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ServicesLayer.Account
 {
-    public class LoginAccountAction : BizActionStatus, IRegisterAccountAction
+    public class LoginAccountAction : BizActionStatus, ILoginAccountAction
     {
         public IMapper AutoMapper;
         public UserManager<AppUser> UserManager;
+        public IOptions<JwtIssuerOptions> JwtOptions;
 
-
-        public LoginAccountAction(IMapper autoMapper, UserManager<AppUser> userManager)
+        public LoginAccountAction(IMapper autoMapper, UserManager<AppUser> userManager, IOptions<JwtIssuerOptions> jwtOptions)
         {
             AutoMapper = autoMapper;
             UserManager = userManager;
+            JwtOptions = jwtOptions;
         }
 
 
-        public async Task<bool> BizActionAsync(AccountDto request)
+        public async Task<string> BizActionAsync(LoginDto request)
         {
-            var userIdentity = AutoMapper.Map<AppUser>(request);
-            userIdentity.Id = Guid.NewGuid().ToString();
-            var result = await UserManager.CreateAsync(userIdentity, request.Password);
+            var result = string.Empty;
+            Tokens token = new Tokens();
+            JwtFactory jwtFactory = new JwtFactory(JwtOptions);
 
-            if (!result.Succeeded)
+            var username = request.UserName;
+            var password = request.Password;
+
+            var userToVerify = await UserManager.FindByNameAsync(username);
+
+            if (userToVerify == null)
             {
-                return false;
-            }
-            else
-            {
-                var user = await UserManager.FindByNameAsync(userIdentity.UserName);
-                try
-                {
-                    await UserManager.AddToRoleAsync(user, "Admin");
-                }
-                catch (Exception ex)
-                {
-                    return false;
-                }
+                return result;
             }
 
-            return true;
+            // check the credentials
+            if (await UserManager.CheckPasswordAsync(userToVerify, password))
+            {
+                var roles = await UserManager.GetRolesAsync(userToVerify);
+                result = await token.GenerateJwt(jwtFactory, userToVerify, JwtOptions.Value, new JsonSerializerSettings { Formatting = Formatting.Indented }, (List<string>)roles);
+            }
+
+            return result;
         }
     }
 }

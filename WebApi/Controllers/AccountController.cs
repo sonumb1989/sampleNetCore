@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace WebApi.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/[controller]/[action]")]
     public class AccountController : ControllerBase
     {
         /// <summary>
@@ -21,6 +21,18 @@ namespace WebApi.Controllers
         {
             var result = await service.RunBizActionAsync<bool>(model);
             return Ok(result);
+        }
+
+        /// <summary>
+        /// Login
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost]
+        [AllowAnonymous]
+        public async Task<IActionResult> Login([FromBody]LoginDto model, [FromServices]IActionServiceAsync<ILoginAccountAction> service)
+        {
+            var response = await service.RunBizActionAsync<string>(model);
+            return Ok(response);
         }
     }
 }
