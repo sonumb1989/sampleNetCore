@@ -38,14 +38,14 @@ namespace Common.Authentication
         public async Task<string> GenerateEncodedToken(AppUser user, List<string> roles)
         {
             var claims = new List<Claim>
-      {
-        new Claim(ClaimTypes.Name, user.UserName),
-        new Claim(ClaimTypes.NameIdentifier, user.Id),
-        new Claim(ClaimTypes.Email, user.Id),
-        new Claim(ClaimTypes.GivenName, user.FirstName),
-        new Claim(JwtRegisteredClaimNames.Jti, await _jwtOptions.JtiGenerator()),
-        new Claim(JwtRegisteredClaimNames.Iat, ToUnixEpochDate(_jwtOptions.IssuedAt).ToString(), ClaimValueTypes.Integer64),
-      };
+              {
+                new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Email, user.Id),
+                new Claim(ClaimTypes.GivenName, user.FirstName),
+                new Claim(JwtRegisteredClaimNames.Jti, await _jwtOptions.JtiGenerator()),
+                new Claim(JwtRegisteredClaimNames.Iat, ToUnixEpochDate(_jwtOptions.IssuedAt).ToString(), ClaimValueTypes.Integer64),
+              };
 
             claims.AddRange(roles.Select(role => new Claim(ClaimsIdentity.DefaultRoleClaimType, role)));
 

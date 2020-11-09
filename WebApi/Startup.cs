@@ -1,5 +1,6 @@
 using AutoMapper;
 using Common.Authentication;
+using Common.Constants;
 using Common.Entities;
 using Common.Extensions;
 using DataLayer.Database;
@@ -13,10 +14,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using ServicesLayer.Dto;
 using System;
 using System.Reflection;
 using System.Text;
+using WebApi.Helpers;
 using WebApi.ViewModels;
 
 namespace WebApi
@@ -36,11 +39,6 @@ namespace WebApi
             services.AddDbContext<ApplicationDbContext>(options =>
                options.UseSqlServer(
                    Configuration.GetConnectionString("DefaultConnection")));
-            services.AddIdentityCore<AppUser>();
-            //to add role for register user
-            services.AddDefaultIdentity<AppUser>()
-            .AddRoles<IdentityRole>()
-            .AddEntityFrameworkStores<ApplicationDbContext>();
 
             var builder = services.AddIdentityCore<AppUser>(o =>
             {
@@ -52,7 +50,9 @@ namespace WebApi
                 o.Password.RequiredLength = 6;
             });
 
-           
+            builder = new IdentityBuilder(builder.UserType, typeof(IdentityRole), builder.Services);
+            builder.AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
+
 
             // Auto Mapper Configurations
             var mappingConfig = new MapperConfiguration(mc =>
@@ -65,7 +65,7 @@ namespace WebApi
 
             // Get options from app settings
             var jwtAppSettingOptions = Configuration.GetSection(nameof(JwtIssuerOptions));
-            var symmetricSecurityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtAppSettingOptions[nameof(JwtIssuerOptions.SecurityKey)]));
+            var symmetricSecurityKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtAppSettingOptions[nameof(JwtIssuerOptions.SecurityKey)]));
 
             // Configure JwtIssuerOptions
             services.Configure<JwtIssuerOptions>(options =>
@@ -75,25 +75,55 @@ namespace WebApi
                 options.SigningCredentials = new SigningCredentials(symmetricSecurityKey, SecurityAlgorithms.HmacSha256);
             });
 
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options => options.TokenValidationParameters = new TokenValidationParameters
+            var tokenValidationParameters = new TokenValidationParameters
             {
-                // What to validate.
                 ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateIssuerSigningKey = true,
-                // Setup validate data
                 ValidIssuer = jwtAppSettingOptions[nameof(JwtIssuerOptions.Issuer)],
+
+                ValidateAudience = true,
                 ValidAudience = jwtAppSettingOptions[nameof(JwtIssuerOptions.Audience)],
+
+                ValidateIssuerSigningKey = true,
                 IssuerSigningKey = symmetricSecurityKey,
+
                 RequireExpirationTime = false,
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero
+            };
+
+
+            services.AddAuthentication(options => {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(configureOptions =>
+            {
+                configureOptions.ClaimsIssuer = jwtAppSettingOptions[nameof(JwtIssuerOptions.Issuer)];
+                configureOptions.TokenValidationParameters = tokenValidationParameters;
+                configureOptions.SaveToken = true;
+            });
+
+            // api user claim policy
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy(KeyConstants.PolicyAuthorizeApiUser, policy => policy.RequireRole(KeyConstants.Strings.JwtClaimIdentifiers.Admin));
             });
 
             services.AddControllers();
 
             //Register the Swagger generator
-            services.AddSwaggerGen();
+            services.AddSwaggerGen(c => {
+                c.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "JWT Authorization header using the Bearer scheme.",
+                });
+                //////Add Operation Specific Authorization///////
+                c.OperationFilter<CustomHeaderSwaggerAttribute>();
+            });
 
             services.AutoRegisterDI();
             #region GenericBizRunner parts
@@ -116,8 +146,9 @@ namespace WebApi
 
             app.UseRouting();
 
-            app.UseAuthorization();
             app.UseAuthentication();
+            app.UseAuthorization();
+           
 
             // Enable middleware to serve generated Swagger as a JSON endpoint.
             app.UseSwagger();

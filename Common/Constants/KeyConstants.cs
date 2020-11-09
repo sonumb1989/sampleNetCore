@@ -52,6 +52,11 @@ namespace Common.Constants
         public static readonly string SecretKey = "iNivDmHLpUA223sqsfhqGbMRdRj1PVkH";
 
         /// <summary>
+        /// ApiUser
+        /// </summary>
+        public const string PolicyAuthorizeApiUser = "ApiUser";
+
+        /// <summary>
         /// SigningKey
         /// </summary>
         public static readonly SymmetricSecurityKey SigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(SecretKey));
